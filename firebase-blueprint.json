@@ -1,0 +1,215 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Registered JANASEVA AI platform user (Citizen, Government Officer, or Administrator).",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "fullName": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "email": { "type": "string", "format": "email", "minLength": 3, "maxLength": 150 },
+        "phone": { "type": "string", "minLength": 0, "maxLength": 20 },
+        "ward": { "type": "string", "minLength": 0, "maxLength": 80 },
+        "city": { "type": "string", "minLength": 0, "maxLength": 80 },
+        "role": { "type": "string", "enum": ["citizen", "officer", "admin"] },
+        "departmentId": { "type": "string", "minLength": 0, "maxLength": 64 },
+        "photoURL": { "type": "string", "minLength": 0, "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "fullName", "email", "role", "createdAt", "updatedAt"]
+    },
+    "Department": {
+      "title": "Department",
+      "description": "Municipal government department responsible for civic infrastructure categories.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "departmentId": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "departmentName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "code": { "type": "string", "minLength": 2, "maxLength": 20 },
+        "category": { "type": "string", "enum": ["Road maintenance", "Sanitation", "Street lighting", "Water supply", "Drainage"] },
+        "serviceArea": { "type": "string", "minLength": 2, "maxLength": 200 },
+        "headOfficerName": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "headOfficerUid": { "type": "string", "minLength": 0, "maxLength": 128 },
+        "contactEmail": { "type": "string", "minLength": 3, "maxLength": 150 },
+        "slaHours": { "type": "number" },
+        "activeOfficers": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "code", "category", "headOfficerName", "slaHours", "createdAt", "updatedAt"]
+    },
+    "Complaint": {
+      "title": "Complaint",
+      "description": "Civic grievance record enriched by the 6-agent AI orchestrator and tracked through resolution.",
+      "type": "object",
+      "properties": {
+        "complaintId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "complaintCode": { "type": "string", "minLength": 5, "maxLength": 32 },
+        "citizenUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "citizenId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "citizenName": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "title": { "type": "string", "minLength": 3, "maxLength": 160 },
+        "description": { "type": "string", "minLength": 10, "maxLength": 4000 },
+        "locationText": { "type": "string", "minLength": 3, "maxLength": 300 },
+        "location": { "type": "string", "minLength": 3, "maxLength": 350 },
+        "ward": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "category": { "type": "string", "enum": ["Road maintenance", "Sanitation", "Street lighting", "Water supply", "Drainage"] },
+        "aiCategory": { "type": "string", "enum": ["Road maintenance", "Sanitation", "Street lighting", "Water supply", "Drainage"] },
+        "priority": { "type": "string", "enum": ["Low", "Medium", "High", "Critical"] },
+        "status": { "type": "string", "enum": ["Submitted", "Under Review", "Assigned", "In Progress", "Info Requested", "Escalated", "Resolved", "Closed"] },
+        "departmentId": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "department": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "departmentName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "departmentApproved": { "type": "boolean" },
+        "departmentHeadUid": { "type": "string", "minLength": 0, "maxLength": 128 },
+        "assignedOfficerUid": { "type": "string", "minLength": 0, "maxLength": 128 },
+        "assignedOfficerName": { "type": "string", "minLength": 0, "maxLength": 100 },
+        "evidenceUrl": { "type": "string", "minLength": 0, "maxLength": 1000 },
+        "resolutionEvidenceUrl": { "type": "string", "minLength": 0, "maxLength": 1000 },
+        "photoDataUrl": { "type": "string", "minLength": 0, "maxLength": 180000 },
+        "resolutionPhotoDataUrl": { "type": "string", "minLength": 0, "maxLength": 180000 },
+        "resolutionNotes": { "type": "string", "minLength": 0, "maxLength": 2000 },
+        "infoRequestMessage": { "type": "string", "minLength": 0, "maxLength": 1000 },
+        "citizenClarification": { "type": "string", "minLength": 0, "maxLength": 1500 },
+        "escalationReason": { "type": "string", "minLength": 0, "maxLength": 1000 },
+        "aiSummary": { "type": "string", "minLength": 0, "maxLength": 2000 },
+        "aiIntakeValid": { "type": "boolean" },
+        "aiSubIssueType": { "type": "string", "minLength": 0, "maxLength": 120 },
+        "aiPotentialDuplicates": { "type": "array" },
+        "aiPriorityReason": { "type": "string", "minLength": 0, "maxLength": 1000 },
+        "aiRoutingReason": { "type": "string", "minLength": 0, "maxLength": 1000 },
+        "aiResolutionSteps": { "type": "array" },
+        "aiEstimatedHours": { "type": "number" },
+        "aiReminderSchedule": { "type": "string", "minLength": 0, "maxLength": 300 },
+        "aiExecutionSummary": { "type": "string", "minLength": 0, "maxLength": 240 },
+        "recurringSignature": { "type": "string", "minLength": 0, "maxLength": 120 },
+        "slaDueAt": { "type": "string", "minLength": 1, "maxLength": 64 },
+        "auditTrail": { "type": "array" },
+        "feedbackSubmitted": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "complaintCode", "citizenUid", "citizenName", "title", "description",
+        "locationText", "ward", "category", "aiCategory", "priority", "status",
+        "departmentId", "departmentName", "departmentApproved", "slaDueAt",
+        "feedbackSubmitted", "createdAt", "updatedAt"
+      ]
+    },
+    "AgentLog": {
+      "title": "AgentLog",
+      "description": "Execution trace from the Central Orchestrator and the 6 specialized AI agents.",
+      "type": "object",
+      "properties": {
+        "complaintId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "complaintCode": { "type": "string", "minLength": 1, "maxLength": 32 },
+        "actorUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "agentName": {
+          "type": "string",
+          "enum": [
+            "Central Orchestrator",
+            "Complaint Intake Agent",
+            "Complaint Classification Agent",
+            "Priority Assessment Agent",
+            "Department Routing Agent",
+            "Resolution Recommendation Agent",
+            "Monitoring and Escalation Agent"
+          ]
+        },
+        "action": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "input": { "type": "string", "minLength": 0, "maxLength": 500 },
+        "output": { "type": "object" },
+        "status": { "type": "string", "enum": ["Completed", "Warning", "Escalated", "Failed"] },
+        "latencyMs": { "type": "number" },
+        "summary": { "type": "string", "minLength": 2, "maxLength": 1000 },
+        "outputData": { "type": "object" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["complaintId", "complaintCode", "actorUid", "agentName", "action", "status", "latencyMs", "summary", "createdAt"]
+    },
+    "Feedback": {
+      "title": "Feedback",
+      "description": "Citizen post-resolution rating and feedback.",
+      "type": "object",
+      "properties": {
+        "complaintId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "complaintCode": { "type": "string", "minLength": 1, "maxLength": 32 },
+        "citizenUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "citizenId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "departmentId": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "rating": { "type": "number" },
+        "comment": { "type": "string", "minLength": 0, "maxLength": 1500 },
+        "comments": { "type": "string", "minLength": 0, "maxLength": 1500 },
+        "resolvedSatisfactorily": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["complaintId", "complaintCode", "citizenUid", "departmentId", "rating", "resolvedSatisfactorily", "createdAt"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Immutable civic accountability audit trail for officer approvals, escalations, and admin updates.",
+      "type": "object",
+      "properties": {
+        "entityType": { "type": "string", "enum": ["complaint", "department", "user", "agent"] },
+        "entityId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "actorUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "actorName": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "actorRole": { "type": "string", "enum": ["citizen", "officer", "admin"] },
+        "action": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "details": { "type": "string", "minLength": 2, "maxLength": 1000 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["entityType", "entityId", "actorUid", "actorName", "actorRole", "action", "details", "createdAt"]
+    },
+    "Diagnostic": {
+      "title": "Diagnostic",
+      "description": "Administrator-only Firestore read/write connectivity diagnostic record.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "actorUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "actorEmail": { "type": "string", "minLength": 3, "maxLength": 150 },
+        "projectId": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "databaseId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "message": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "actorUid", "actorEmail", "projectId", "databaseId", "message", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "Stores user profiles and role assignments with owner/admin PII protection."
+    },
+    "/departments/{departmentId}": {
+      "schema": { "$ref": "#/entities/Department" },
+      "description": "Stores government departments, SLA targets, and officer assignments."
+    },
+    "/complaints/{complaintId}": {
+      "schema": { "$ref": "#/entities/Complaint" },
+      "description": "Stores citizen complaints, AI agent outputs, department routing, and resolution evidence."
+    },
+    "/agent_logs/{logId}": {
+      "schema": { "$ref": "#/entities/AgentLog" },
+      "description": "Stores execution traces for the Central Orchestrator and 6 specialized AI agents."
+    },
+    "/feedback/{feedbackId}": {
+      "schema": { "$ref": "#/entities/Feedback" },
+      "description": "Stores citizen resolution feedback linked to resolved complaints."
+    },
+    "/audit_logs/{auditId}": {
+      "schema": { "$ref": "#/entities/AuditLog" },
+      "description": "Stores immutable civic audit events for approvals, status transitions, and escalations."
+    },
+    "/diagnostics/{diagId}": {
+      "schema": { "$ref": "#/entities/Diagnostic" },
+      "description": "Stores administrator-only Firestore connectivity verification documents."
+    }
+  }
+}

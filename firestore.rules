@@ -1,0 +1,439 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. Global Hardened Primitives
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isBootstrappedAdmin() {
+      return isVerified() && request.auth.token.email == 'codewithgreeshma26@gmail.com';
+    }
+
+    function isAdmin() {
+      return isBootstrappedAdmin() || (
+        isVerified() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+      );
+    }
+
+    function isOfficer() {
+      return isBootstrappedAdmin() || (
+        isVerified() &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['officer', 'admin']
+      );
+    }
+
+    function isValidCategory(cat) {
+      return cat in ['Road maintenance', 'Sanitation', 'Street lighting', 'Water supply', 'Drainage'];
+    }
+
+    function isValidPriority(p) {
+      return p in ['Low', 'Medium', 'High', 'Critical'];
+    }
+
+    function isValidComplaintStatus(s) {
+      return s in ['Submitted', 'Under Review', 'Assigned', 'In Progress', 'Info Requested', 'Escalated', 'Resolved', 'Closed'];
+    }
+
+    function isOfficerForComplaint(data) {
+      return isOfficer() && (
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.departmentId != '' &&
+         data.departmentId == get(/databases/$(database)/documents/users/$(request.auth.uid)).data.departmentId) ||
+        data.assignedOfficerUid == request.auth.uid ||
+        data.departmentHeadUid == request.auth.uid ||
+        data.citizenUid == request.auth.uid
+      );
+    }
+
+    // 3. Entity Validation Blueprints
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'fullName', 'email', 'role', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'name', 'fullName', 'email', 'phone', 'ward', 'city', 'role', 'departmentId', 'photoURL', 'createdAt', 'updatedAt'])
+        && isValidId(data.uid)
+        && (!('name' in data) || (data.name is string && data.name.size() >= 1 && data.name.size() <= 100))
+        && data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 100
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 150
+        && (!('phone' in data) || (data.phone is string && data.phone.size() <= 20))
+        && (!('ward' in data) || (data.ward is string && data.ward.size() <= 80))
+        && (!('city' in data) || (data.city is string && data.city.size() <= 80))
+        && data.role in ['citizen', 'officer', 'admin']
+        && (!('departmentId' in data) || (data.departmentId is string && data.departmentId.size() <= 64))
+        && (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 500))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidDepartment(data) {
+      return data.keys().hasAll(['id', 'name', 'code', 'category', 'headOfficerName', 'slaHours', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'departmentId', 'name', 'departmentName', 'code', 'category', 'serviceArea', 'headOfficerName', 'headOfficerUid', 'contactEmail', 'slaHours', 'activeOfficers', 'createdAt', 'updatedAt'])
+        && isValidId(data.id)
+        && (!('departmentId' in data) || isValidId(data.departmentId))
+        && data.name is string && data.name.size() >= 2 && data.name.size() <= 120
+        && (!('departmentName' in data) || (data.departmentName is string && data.departmentName.size() >= 2 && data.departmentName.size() <= 120))
+        && data.code is string && data.code.size() >= 2 && data.code.size() <= 20
+        && isValidCategory(data.category)
+        && (!('serviceArea' in data) || (data.serviceArea is string && data.serviceArea.size() >= 2 && data.serviceArea.size() <= 200))
+        && data.headOfficerName is string && data.headOfficerName.size() >= 1 && data.headOfficerName.size() <= 100
+        && (!('headOfficerUid' in data) || (data.headOfficerUid is string && data.headOfficerUid.size() <= 128))
+        && (!('contactEmail' in data) || (data.contactEmail is string && data.contactEmail.size() <= 150))
+        && data.slaHours is number && data.slaHours >= 1 && data.slaHours <= 720
+        && (!('activeOfficers' in data) || (data.activeOfficers is number && data.activeOfficers >= 0 && data.activeOfficers <= 1000))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidComplaint(data) {
+      return data.keys().hasAll([
+          'complaintCode', 'citizenUid', 'citizenName', 'title', 'description',
+          'locationText', 'ward', 'category', 'aiCategory', 'priority', 'status',
+          'departmentId', 'departmentName', 'departmentApproved', 'slaDueAt',
+          'feedbackSubmitted', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'complaintId', 'complaintCode', 'citizenUid', 'citizenId', 'citizenName', 'title', 'description',
+          'locationText', 'location', 'ward', 'category', 'aiCategory', 'priority', 'status',
+          'departmentId', 'department', 'departmentName', 'departmentApproved', 'departmentHeadUid',
+          'assignedOfficerUid', 'assignedOfficerName', 'evidenceUrl', 'resolutionEvidenceUrl',
+          'photoDataUrl', 'resolutionPhotoDataUrl',
+          'resolutionNotes', 'infoRequestMessage', 'citizenClarification', 'escalationReason',
+          'aiSummary', 'aiIntakeValid', 'aiSubIssueType', 'aiPotentialDuplicates',
+          'aiPriorityReason', 'aiRoutingReason',
+          'aiResolutionSteps', 'aiEstimatedHours', 'aiReminderSchedule', 'aiExecutionSummary',
+          'recurringSignature', 'slaDueAt',
+          'auditTrail', 'feedbackSubmitted', 'createdAt', 'updatedAt'
+        ])
+        && (!('complaintId' in data) || isValidId(data.complaintId))
+        && data.complaintCode is string && data.complaintCode.size() >= 5 && data.complaintCode.size() <= 32
+        && isValidId(data.citizenUid)
+        && (!('citizenId' in data) || isValidId(data.citizenId))
+        && data.citizenName is string && data.citizenName.size() >= 1 && data.citizenName.size() <= 100
+        && data.title is string && data.title.size() >= 3 && data.title.size() <= 160
+        && data.description is string && data.description.size() >= 10 && data.description.size() <= 4000
+        && data.locationText is string && data.locationText.size() >= 3 && data.locationText.size() <= 300
+        && (!('location' in data) || (data.location is string && data.location.size() >= 3 && data.location.size() <= 350))
+        && data.ward is string && data.ward.size() >= 1 && data.ward.size() <= 100
+        && isValidCategory(data.category)
+        && isValidCategory(data.aiCategory)
+        && isValidPriority(data.priority)
+        && isValidComplaintStatus(data.status)
+        && isValidId(data.departmentId)
+        && (!('department' in data) || (data.department is string && data.department.size() >= 2 && data.department.size() <= 120))
+        && data.departmentName is string && data.departmentName.size() >= 2 && data.departmentName.size() <= 120
+        && data.departmentApproved is bool
+        && (!('departmentHeadUid' in data) || (data.departmentHeadUid is string && data.departmentHeadUid.size() <= 128))
+        && (!('assignedOfficerUid' in data) || (data.assignedOfficerUid is string && data.assignedOfficerUid.size() <= 128))
+        && (!('assignedOfficerName' in data) || (data.assignedOfficerName is string && data.assignedOfficerName.size() <= 100))
+        && (!('evidenceUrl' in data) || (data.evidenceUrl is string && data.evidenceUrl.size() <= 1000))
+        && (!('resolutionEvidenceUrl' in data) || (data.resolutionEvidenceUrl is string && data.resolutionEvidenceUrl.size() <= 1000))
+        && (!('photoDataUrl' in data) || (data.photoDataUrl is string && data.photoDataUrl.size() <= 180000))
+        && (!('resolutionPhotoDataUrl' in data) || (data.resolutionPhotoDataUrl is string && data.resolutionPhotoDataUrl.size() <= 180000))
+        && (!('resolutionNotes' in data) || (data.resolutionNotes is string && data.resolutionNotes.size() <= 2000))
+        && (!('infoRequestMessage' in data) || (data.infoRequestMessage is string && data.infoRequestMessage.size() <= 1000))
+        && (!('citizenClarification' in data) || (data.citizenClarification is string && data.citizenClarification.size() <= 1500))
+        && (!('escalationReason' in data) || (data.escalationReason is string && data.escalationReason.size() <= 1000))
+        && (!('aiSummary' in data) || (data.aiSummary is string && data.aiSummary.size() <= 2000))
+        && (!('aiIntakeValid' in data) || data.aiIntakeValid is bool)
+        && (!('aiSubIssueType' in data) || (data.aiSubIssueType is string && data.aiSubIssueType.size() <= 120))
+        && (!('aiPotentialDuplicates' in data) || (data.aiPotentialDuplicates is list && data.aiPotentialDuplicates.size() <= 5 && (data.aiPotentialDuplicates.size() == 0 || (data.aiPotentialDuplicates[0] is string && data.aiPotentialDuplicates[0].size() <= 32))))
+        && (!('aiPriorityReason' in data) || (data.aiPriorityReason is string && data.aiPriorityReason.size() <= 1000))
+        && (!('aiRoutingReason' in data) || (data.aiRoutingReason is string && data.aiRoutingReason.size() <= 1000))
+        && (!('aiResolutionSteps' in data) || (data.aiResolutionSteps is list && data.aiResolutionSteps.size() <= 10 && (data.aiResolutionSteps.size() == 0 || (data.aiResolutionSteps[0] is string && data.aiResolutionSteps[0].size() <= 300))))
+        && (!('aiEstimatedHours' in data) || (data.aiEstimatedHours is number && data.aiEstimatedHours >= 1 && data.aiEstimatedHours <= 720))
+        && (!('aiReminderSchedule' in data) || (data.aiReminderSchedule is string && data.aiReminderSchedule.size() <= 300))
+        && (!('aiExecutionSummary' in data) || (data.aiExecutionSummary is string && data.aiExecutionSummary.size() <= 240))
+        && (!('recurringSignature' in data) || (data.recurringSignature is string && data.recurringSignature.size() <= 120))
+        && data.slaDueAt is string && data.slaDueAt.size() >= 1 && data.slaDueAt.size() <= 64
+        && (!('auditTrail' in data) || (data.auditTrail is list && data.auditTrail.size() <= 30 && (data.auditTrail.size() == 0 || data.auditTrail[0] is map)))
+        && data.feedbackSubmitted is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAgentLog(data) {
+      return data.keys().hasAll(['complaintId', 'complaintCode', 'actorUid', 'agentName', 'action', 'status', 'latencyMs', 'summary', 'createdAt'])
+        && data.keys().hasOnly(['complaintId', 'complaintCode', 'actorUid', 'agentName', 'action', 'input', 'output', 'status', 'latencyMs', 'summary', 'outputData', 'timestamp', 'createdAt'])
+        && isValidId(data.complaintId)
+        && data.complaintCode is string && data.complaintCode.size() >= 1 && data.complaintCode.size() <= 32
+        && isValidId(data.actorUid)
+        && data.agentName in [
+          'Central Orchestrator',
+          'Complaint Intake Agent',
+          'Complaint Classification Agent',
+          'Priority Assessment Agent',
+          'Department Routing Agent',
+          'Resolution Recommendation Agent',
+          'Monitoring and Escalation Agent'
+        ]
+        && data.action is string && data.action.size() >= 2 && data.action.size() <= 120
+        && (!('input' in data) || (data.input is string && data.input.size() <= 500))
+        && (!('output' in data) || data.output is map)
+        && data.status in ['Completed', 'Warning', 'Escalated', 'Failed']
+        && data.latencyMs is number && data.latencyMs >= 0 && data.latencyMs <= 300000
+        && data.summary is string && data.summary.size() >= 2 && data.summary.size() <= 1000
+        && (!('outputData' in data) || data.outputData is map)
+        && (!('timestamp' in data) || data.timestamp is timestamp)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidFeedback(data) {
+      return data.keys().hasAll(['complaintId', 'complaintCode', 'citizenUid', 'departmentId', 'rating', 'resolvedSatisfactorily', 'createdAt'])
+        && data.keys().hasOnly(['complaintId', 'complaintCode', 'citizenUid', 'citizenId', 'departmentId', 'rating', 'comment', 'comments', 'resolvedSatisfactorily', 'createdAt'])
+        && isValidId(data.complaintId)
+        && data.complaintCode is string && data.complaintCode.size() >= 1 && data.complaintCode.size() <= 32
+        && isValidId(data.citizenUid)
+        && (!('citizenId' in data) || isValidId(data.citizenId))
+        && isValidId(data.departmentId)
+        && data.rating is number && data.rating >= 1 && data.rating <= 5
+        && (!('comment' in data) || (data.comment is string && data.comment.size() <= 1500))
+        && (!('comments' in data) || (data.comments is string && data.comments.size() <= 1500))
+        && data.resolvedSatisfactorily is bool
+        && data.createdAt is timestamp;
+    }
+
+    function isValidAuditLog(data) {
+      return data.keys().hasAll(['entityType', 'entityId', 'actorUid', 'actorName', 'actorRole', 'action', 'details', 'createdAt'])
+        && data.keys().hasOnly(['entityType', 'entityId', 'actorUid', 'actorName', 'actorRole', 'action', 'details', 'createdAt'])
+        && data.entityType in ['complaint', 'department', 'user', 'agent']
+        && isValidId(data.entityId)
+        && isValidId(data.actorUid)
+        && data.actorName is string && data.actorName.size() >= 1 && data.actorName.size() <= 100
+        && data.actorRole in ['citizen', 'officer', 'admin']
+        && data.action is string && data.action.size() >= 2 && data.action.size() <= 120
+        && data.details is string && data.details.size() >= 2 && data.details.size() <= 1000
+        && data.createdAt is timestamp;
+    }
+
+    function isValidDiagnostic(data) {
+      return data.keys().hasAll(['id', 'actorUid', 'actorEmail', 'projectId', 'databaseId', 'message', 'createdAt'])
+        && data.keys().hasOnly(['id', 'actorUid', 'actorEmail', 'projectId', 'databaseId', 'message', 'createdAt'])
+        && isValidId(data.id)
+        && isValidId(data.actorUid)
+        && data.actorEmail is string && data.actorEmail.size() >= 3 && data.actorEmail.size() <= 150
+        && data.projectId is string && data.projectId.size() >= 1 && data.projectId.size() <= 100
+        && data.databaseId is string && data.databaseId.size() >= 1 && data.databaseId.size() <= 128
+        && data.message is string && data.message.size() >= 1 && data.message.size() <= 500
+        && data.createdAt is timestamp;
+    }
+
+    // 4. Collection Rules
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isVerified()
+        && isValidId(userId)
+        && isValidUser(incoming())
+        && incoming().uid == userId
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          (userId == request.auth.uid && (incoming().role == 'citizen' || isBootstrappedAdmin())) ||
+          isAdmin()
+        );
+      allow update: if isVerified()
+        && isValidId(userId)
+        && isValidUser(incoming())
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (
+            request.auth.uid == userId
+            && incoming().role == existing().role
+            && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'fullName', 'phone', 'ward', 'city', 'photoURL', 'updatedAt'])
+          )
+        );
+      allow delete: if isAdmin() && isValidId(userId);
+    }
+
+    match /departments/{departmentId} {
+      allow get: if isVerified() && isValidId(departmentId);
+      allow list: if isVerified();
+      allow create: if isAdmin()
+        && isValidId(departmentId)
+        && isValidDepartment(incoming())
+        && incoming().id == departmentId
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isAdmin()
+        && isValidId(departmentId)
+        && isValidDepartment(incoming())
+        && incoming().id == existing().id
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+      allow delete: if isAdmin() && isValidId(departmentId);
+    }
+
+    match /complaints/{complaintId} {
+      allow get: if isSignedIn() && isValidId(complaintId) && (
+        existing().citizenUid == request.auth.uid ||
+        existing().assignedOfficerUid == request.auth.uid ||
+        existing().departmentHeadUid == request.auth.uid ||
+        isOfficerForComplaint(existing()) ||
+        isAdmin()
+      );
+      allow list: if isAdmin() || isOfficerForComplaint(existing()) || (
+        isVerified() && existing().citizenUid == request.auth.uid
+      );
+      allow create: if isVerified()
+        && isValidId(complaintId)
+        && isValidComplaint(incoming())
+        && incoming().citizenUid == request.auth.uid
+        && (!('citizenId' in incoming()) || incoming().citizenId == request.auth.uid)
+        && incoming().status in ['Submitted', 'Under Review', 'Assigned']
+        && incoming().departmentApproved == false
+        && incoming().feedbackSubmitted == false
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && exists(/databases/$(database)/documents/departments/$(incoming().departmentId));
+      allow update: if isVerified()
+        && isValidId(complaintId)
+        && isValidComplaint(incoming())
+        && incoming().citizenUid == existing().citizenUid
+        && incoming().complaintCode == existing().complaintCode
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (existing().status != 'Closed' || isAdmin())
+        && (
+          isAdmin() ||
+          (
+            isOfficerForComplaint(existing())
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'departmentId', 'department', 'departmentName', 'departmentApproved', 'departmentHeadUid',
+              'assignedOfficerUid', 'assignedOfficerName', 'status', 'priority',
+              'resolutionEvidenceUrl', 'resolutionPhotoDataUrl', 'resolutionNotes', 'infoRequestMessage',
+              'escalationReason', 'auditTrail', 'updatedAt'
+            ])
+            && (
+              incoming().departmentId == existing().departmentId ||
+              exists(/databases/$(database)/documents/departments/$(incoming().departmentId))
+            )
+          ) ||
+          (
+            existing().citizenUid == request.auth.uid
+            && existing().status == 'Submitted'
+            && incoming().status == 'Under Review'
+            && existing().departmentApproved == false
+            && incoming().departmentApproved == false
+            && incoming().feedbackSubmitted == false
+            && exists(/databases/$(database)/documents/departments/$(incoming().departmentId))
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'category', 'aiCategory', 'priority', 'status', 'departmentId', 'department',
+              'departmentName', 'departmentHeadUid', 'assignedOfficerName', 'escalationReason',
+              'aiSummary', 'aiIntakeValid', 'aiSubIssueType', 'aiPotentialDuplicates',
+              'aiPriorityReason', 'aiRoutingReason', 'aiResolutionSteps', 'aiEstimatedHours',
+              'aiReminderSchedule', 'aiExecutionSummary', 'recurringSignature', 'slaDueAt',
+              'auditTrail', 'updatedAt'
+            ])
+          ) ||
+          (
+            existing().citizenUid == request.auth.uid
+            && existing().status == 'Info Requested'
+            && incoming().status == 'Under Review'
+            && incoming().diff(existing()).affectedKeys().hasOnly(['citizenClarification', 'status', 'auditTrail', 'updatedAt'])
+          ) ||
+          (
+            existing().citizenUid == request.auth.uid
+            && existing().status == 'Resolved'
+            && incoming().feedbackSubmitted == true
+            && incoming().status in ['Resolved', 'Closed']
+            && incoming().diff(existing()).affectedKeys().hasOnly(['feedbackSubmitted', 'status', 'auditTrail', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(complaintId) && (
+        isAdmin() ||
+        (
+          isVerified()
+          && existing().citizenUid == request.auth.uid
+          && existing().status in ['Submitted', 'Under Review']
+          && existing().departmentApproved == false
+        )
+      );
+    }
+
+    match /agent_logs/{logId} {
+      allow get: if isSignedIn() && isValidId(logId) && (
+        existing().actorUid == request.auth.uid || isOfficer() || isAdmin()
+      );
+      allow list: if isAdmin() || isOfficer() || (
+        isVerified() && existing().actorUid == request.auth.uid
+      );
+      allow create: if isVerified()
+        && isValidId(logId)
+        && isValidAgentLog(incoming())
+        && incoming().actorUid == request.auth.uid
+        && incoming().createdAt == request.time
+        && exists(/databases/$(database)/documents/complaints/$(incoming().complaintId));
+      allow update, delete: if false;
+    }
+
+    match /feedback/{feedbackId} {
+      allow get: if isSignedIn() && isValidId(feedbackId) && (
+        existing().citizenUid == request.auth.uid || isOfficer() || isAdmin()
+      );
+      allow list: if isAdmin() || (
+        isVerified() && existing().citizenUid == request.auth.uid
+      );
+      allow create: if isVerified()
+        && isValidId(feedbackId)
+        && isValidFeedback(incoming())
+        && incoming().citizenUid == request.auth.uid
+        && incoming().createdAt == request.time
+        && exists(/databases/$(database)/documents/complaints/$(incoming().complaintId))
+        && get(/databases/$(database)/documents/complaints/$(incoming().complaintId)).data.citizenUid == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    match /audit_logs/{auditId} {
+      allow get: if isSignedIn() && isValidId(auditId) && (
+        existing().actorUid == request.auth.uid || isOfficer() || isAdmin()
+      );
+      allow list: if isAdmin() || (
+        isVerified() && existing().actorUid == request.auth.uid
+      );
+      allow create: if isVerified()
+        && isValidId(auditId)
+        && isValidAuditLog(incoming())
+        && incoming().actorUid == request.auth.uid
+        && incoming().createdAt == request.time;
+      allow update, delete: if false;
+    }
+
+    match /diagnostics/{diagId} {
+      allow get: if isAdmin() && isValidId(diagId);
+      allow list: if isAdmin();
+      allow create: if isAdmin()
+        && isValidId(diagId)
+        && isValidDiagnostic(incoming())
+        && incoming().id == diagId
+        && incoming().actorUid == request.auth.uid
+        && incoming().createdAt == request.time;
+      allow update, delete: if false;
+    }
+  }
+}

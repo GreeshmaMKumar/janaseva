@@ -1,0 +1,6 @@
+{
+  "name": "JANASEVA AI",
+  "description": "Intelligent Government Complaint Management and Resolution System powered by multi-agent AI orchestration, Firebase Firestore, and role-based civic portals.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
